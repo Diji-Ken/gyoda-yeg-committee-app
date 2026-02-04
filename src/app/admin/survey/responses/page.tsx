@@ -143,7 +143,7 @@ export default function SurveyResponsesPage() {
           memberName={memberName(editMemberId)}
           candidates={candidates}
           initialCandidateIds={selectedCandidateIds}
-          initialAvailability={av}
+          initialAvailability={av ?? null}
           saving={saving}
           onSave={async (candidateIds, busyWeekdays, busyTimeZones, busyMonthPeriod, freeComment, seminarWishes, lecturePersonWish) => {
             setSaving(true);
