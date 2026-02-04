@@ -363,9 +363,8 @@ export default function ResponsePage() {
         </div>
       </main>
 
-      <footer className="text-center py-4 border-t border-stone-200 space-y-1">
-        <a href="/board" className="text-sm text-stone-500 underline block">委員向けページ（スケジュール・議事録・連絡）</a>
-        <a href="/admin" className="text-sm text-stone-400 underline block">管理者用ダッシュボード</a>
+      <footer className="text-center py-4 border-t border-stone-200">
+        <a href="/board" className="text-sm text-stone-500 underline">委員会メンバー（スケジュール・議事録・連絡）</a>
       </footer>
     </div>
   );
