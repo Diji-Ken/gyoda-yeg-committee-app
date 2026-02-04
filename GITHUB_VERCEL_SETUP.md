@@ -57,8 +57,9 @@ git push -u origin main
    - **Root Directory**: そのまま（`./`）
    - **Build Command**: `npm run build` のまま
    - **Environment Variables** を追加（リポジトリの `env.example` を参照）:
-     - `NEXT_PUBLIC_SUPABASE_URL` = Supabase の Project URL
-     - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = Supabase の anon public key
+     - `NEXT_PUBLIC_SUPABASE_URL` = Supabase の Project URL（例: `https://xxxxx.supabase.co`）
+     - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = Supabase の anon public key  
+     - ※ 値は **Supabase ダッシュボード → Settings → API** からコピー。または、mirai プロジェクト内の `00_knowledge/settings/credentials/supabase_gyoda_yeg.md`（行田YEG用）に記載の「API用」を参照。
 5. **Deploy** をクリック
 
 ビルドが終わると、`https://○○○.vercel.app` のような URL で公開されます。
