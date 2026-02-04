@@ -48,11 +48,19 @@ export default function AdminSurveyPage() {
   }, []);
 
   const memberName = (id: string) => members.find((m) => m.id === id)?.name ?? id;
+  const candidateLabelById = (id: string) => candidates.find((c) => c.id === id)?.label ?? id;
   const byCandidate = new Map<string, string[]>();
   meetingResponses.forEach((r) => {
     const list = byCandidate.get(r.meeting_candidate_id) ?? [];
     list.push(memberName(r.member_id));
     byCandidate.set(r.meeting_candidate_id, list);
+  });
+  /** 回答者ごとの顔合わせで選んだ日（ラベル一覧） */
+  const meetingLabelsByMember = new Map<string, string[]>();
+  meetingResponses.forEach((r) => {
+    const list = meetingLabelsByMember.get(r.member_id) ?? [];
+    list.push(candidateLabelById(r.meeting_candidate_id));
+    meetingLabelsByMember.set(r.member_id, list);
   });
 
   const busyWeekdayCounts = new Map<string, number>();
@@ -73,9 +81,76 @@ export default function AdminSurveyPage() {
   if (loading) return <p className="text-stone-500">読み込み中…</p>;
   if (error) return <p className="text-red-600">{error}</p>;
 
+  const maxCount = (m: Map<string, number>) => Math.max(1, ...Array.from(m.values()));
+  const respondents = members.filter(
+    (m) => meetingResponses.some((r) => r.member_id === m.id) || availability.some((a) => a.member_id === m.id)
+  );
+
   return (
     <div className="space-y-6">
       <h2 className="text-lg font-bold text-stone-800">アンケート集計（初回顔合わせ・稼働）</h2>
+
+      {/* 回答者ごとの回答内容（誰が何を回答したか） */}
+      <section className="bg-white rounded-xl border border-stone-200 p-4">
+        <h3 className="font-semibold text-stone-700 mb-3">回答者ごとの回答内容</h3>
+        <p className="text-xs text-stone-500 mb-4">誰が何を回答したかを一覧で確認できます。</p>
+        {respondents.length === 0 ? (
+          <p className="text-sm text-stone-400">まだ回答はありません</p>
+        ) : (
+          <div className="space-y-4">
+            {respondents.map((m) => {
+              const meetingLabels = meetingLabelsByMember.get(m.id) ?? [];
+              const av = availability.find((a) => a.member_id === m.id);
+              return (
+                <div key={m.id} className="border border-stone-200 rounded-lg p-4 bg-stone-50/50">
+                  <p className="font-semibold text-stone-800 border-b border-stone-200 pb-2 mb-3">{m.name}</p>
+                  <dl className="grid gap-2 text-sm">
+                    <div>
+                      <dt className="text-stone-500">顔合わせ 参加できる日</dt>
+                      <dd className="text-stone-700">{meetingLabels.length ? meetingLabels.join("、") : "—"}</dd>
+                    </div>
+                    {av && (
+                      <>
+                        <div>
+                          <dt className="text-stone-500">参加しにくい曜日</dt>
+                          <dd className="text-stone-700">{(av.busy_weekdays ?? []).length ? (av.busy_weekdays ?? []).join("、") : "—"}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-stone-500">参加しにくい時間帯</dt>
+                          <dd className="text-stone-700">{(av.busy_time_zones ?? []).length ? (av.busy_time_zones ?? []).join("、") : "—"}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-stone-500">忙しい時期</dt>
+                          <dd className="text-stone-700">{(av.busy_month_period ?? []).length ? (av.busy_month_period ?? []).join("、") : "—"}</dd>
+                        </div>
+                        <div>
+                          <dt className="text-stone-500">実施してほしいセミナー・学びたいこと</dt>
+                          <dd className="text-stone-700">
+                            {(av.seminar_wishes?.selected ?? []).length ? (av.seminar_wishes?.selected ?? []).join("、") : "—"}
+                            {(av.seminar_wishes?.other ?? "").trim() && `（その他: ${av.seminar_wishes?.other}）`}
+                          </dd>
+                        </div>
+                        {(av.lecture_person_wish ?? "").trim() && (
+                          <div>
+                            <dt className="text-stone-500">この人の講義を聞きたい</dt>
+                            <dd className="text-stone-700">{av.lecture_person_wish}</dd>
+                          </div>
+                        )}
+                        {(av.free_comment ?? "").trim() && (
+                          <div>
+                            <dt className="text-stone-500">その他コメント</dt>
+                            <dd className="text-stone-700">{av.free_comment}</dd>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </dl>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </section>
 
       <section className="bg-white rounded-xl border border-stone-200 p-4">
         <h3 className="font-semibold text-stone-700 mb-3">初回顔合わせ 参加できる日時</h3>
@@ -99,45 +174,82 @@ export default function AdminSurveyPage() {
 
       <section className="bg-white rounded-xl border border-stone-200 p-4">
         <h3 className="font-semibold text-stone-700 mb-3">参加しにくい曜日（人数）</h3>
+        <div className="space-y-2 mb-3">
+          {WEEKDAYS.map((d) => {
+            const n = busyWeekdayCounts.get(d) ?? 0;
+            const w = maxCount(busyWeekdayCounts) > 0 ? (n / maxCount(busyWeekdayCounts)) * 100 : 0;
+            return (
+              <div key={d} className="flex items-center gap-2">
+                <span className="w-6 text-stone-600 text-sm">{d}</span>
+                <div className="flex-1 h-6 bg-stone-100 rounded overflow-hidden">
+                  <div className="h-full bg-red-400 rounded" style={{ width: `${w}%` }} />
+                </div>
+                <span className="w-8 text-right text-sm font-medium text-stone-700">{n}人</span>
+              </div>
+            );
+          })}
+        </div>
         <div className="flex flex-wrap gap-2">
           {WEEKDAYS.map((d) => (
-            <div key={d} className="px-3 py-2 rounded-lg bg-red-50 text-red-900 text-sm">
-              {d} <span className="font-semibold">{busyWeekdayCounts.get(d) ?? 0}</span>人
-            </div>
+            <span key={d} className="px-2 py-1 rounded bg-red-50 text-red-900 text-xs">{d} {busyWeekdayCounts.get(d) ?? 0}</span>
           ))}
         </div>
       </section>
 
       <section className="bg-white rounded-xl border border-stone-200 p-4">
         <h3 className="font-semibold text-stone-700 mb-3">参加しにくい時間帯（人数）</h3>
-        <div className="flex flex-wrap gap-2">
-          {TIME_ZONES.map((z) => (
-            <div key={z} className="px-3 py-2 rounded-lg bg-red-50 text-red-900 text-sm">
-              {z} <span className="font-semibold">{busyTimeZoneCounts.get(z) ?? 0}</span>人
-            </div>
-          ))}
+        <div className="space-y-2 mb-3">
+          {TIME_ZONES.map((z) => {
+            const n = busyTimeZoneCounts.get(z) ?? 0;
+            const w = maxCount(busyTimeZoneCounts) > 0 ? (n / maxCount(busyTimeZoneCounts)) * 100 : 0;
+            return (
+              <div key={z} className="flex items-center gap-2">
+                <span className="w-24 text-stone-600 text-xs truncate">{z}</span>
+                <div className="flex-1 h-5 bg-stone-100 rounded overflow-hidden">
+                  <div className="h-full bg-red-400 rounded" style={{ width: `${w}%` }} />
+                </div>
+                <span className="w-8 text-right text-sm font-medium text-stone-700">{n}人</span>
+              </div>
+            );
+          })}
         </div>
       </section>
 
       <section className="bg-white rounded-xl border border-stone-200 p-4">
         <h3 className="font-semibold text-stone-700 mb-3">忙しい時期（人数）</h3>
-        <div className="flex flex-wrap gap-2">
-          {MONTH_PERIODS.map((p) => (
-            <div key={p} className="px-3 py-2 rounded-lg bg-amber-50 text-amber-900 text-sm">
-              {p} <span className="font-semibold">{monthPeriodCounts.get(p) ?? 0}</span>人
-            </div>
-          ))}
+        <div className="space-y-2 mb-3">
+          {MONTH_PERIODS.map((p) => {
+            const n = monthPeriodCounts.get(p) ?? 0;
+            const w = maxCount(monthPeriodCounts) > 0 ? (n / maxCount(monthPeriodCounts)) * 100 : 0;
+            return (
+              <div key={p} className="flex items-center gap-2">
+                <span className="w-16 text-stone-600 text-sm">{p}</span>
+                <div className="flex-1 h-6 bg-stone-100 rounded overflow-hidden">
+                  <div className="h-full bg-amber-400 rounded" style={{ width: `${w}%` }} />
+                </div>
+                <span className="w-8 text-right text-sm font-medium text-stone-700">{n}人</span>
+              </div>
+            );
+          })}
         </div>
       </section>
 
       <section className="bg-white rounded-xl border border-stone-200 p-4">
         <h3 className="font-semibold text-stone-700 mb-3">実施してほしいセミナー・学びたいこと（人数）</h3>
-        <div className="flex flex-wrap gap-2 mb-3">
-          {SEMINAR_OPTIONS.map((s) => (
-            <div key={s} className="px-3 py-2 rounded-lg bg-stone-100 text-stone-700 text-sm">
-              {s} <span className="font-semibold">{seminarCounts.get(s) ?? 0}</span>人
-            </div>
-          ))}
+        <div className="space-y-2 mb-3">
+          {SEMINAR_OPTIONS.map((s) => {
+            const n = seminarCounts.get(s) ?? 0;
+            const w = maxCount(seminarCounts) > 0 ? (n / maxCount(seminarCounts)) * 100 : 0;
+            return (
+              <div key={s} className="flex items-center gap-2">
+                <span className="w-28 text-stone-600 text-xs truncate">{s}</span>
+                <div className="flex-1 h-5 bg-stone-100 rounded overflow-hidden">
+                  <div className="h-full bg-amber-500 rounded" style={{ width: `${w}%` }} />
+                </div>
+                <span className="w-8 text-right text-sm font-medium text-stone-700">{n}人</span>
+              </div>
+            );
+          })}
         </div>
         {availability.some((a) => (a.seminar_wishes?.other ?? "").trim()) && (
           <>

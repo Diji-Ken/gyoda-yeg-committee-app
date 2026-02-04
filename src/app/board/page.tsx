@@ -7,6 +7,7 @@ import {
   getMinutes,
   getSharedMaterials,
 } from "@/app/actions";
+import { SURVEY_CONFIG, getDeadlineDisplay } from "@/lib/surveyConfig";
 import type { ScheduleEvent } from "@/app/actions";
 
 const today = () => {
@@ -80,7 +81,7 @@ export default function BoardPage() {
             className="block relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 p-5 shadow-lg shadow-amber-500/25 text-white hover:shadow-xl hover:shadow-amber-500/30 transition-shadow active:scale-[0.99]"
           >
             <span className="absolute top-3 right-3 text-xs font-medium bg-white/20 px-2 py-0.5 rounded-full">
-              ご協力お願いします
+              {SURVEY_CONFIG.isOpen ? "募集中" : "ご協力お願いします"}
             </span>
             <div className="flex items-start gap-4">
               <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
@@ -90,7 +91,12 @@ export default function BoardPage() {
               </div>
               <div className="flex-1 min-w-0">
                 <h2 className="font-bold text-lg leading-tight">アンケートにご協力ください</h2>
-                <p className="text-amber-100 text-sm mt-1">初回顔合わせ・稼働のご希望を教えてください。タップして回答へ</p>
+                <p className="text-amber-100 text-sm mt-1">
+                  初回顔合わせ・稼働のご希望を教えてください。タップして回答へ
+                  {SURVEY_CONFIG.isOpen && (
+                    <span className="block mt-1 text-amber-200 font-medium">締切 {getDeadlineDisplay()}</span>
+                  )}
+                </p>
                 <span className="inline-flex items-center gap-1 mt-3 text-sm font-medium">
                   回答する
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

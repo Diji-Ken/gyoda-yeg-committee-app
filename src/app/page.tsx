@@ -8,6 +8,7 @@ import {
   MONTH_PERIODS,
   SEMINAR_OPTIONS,
 } from "@/lib/supabase";
+import { SURVEY_CONFIG, getDeadlineDisplay } from "@/lib/surveyConfig";
 
 type Member = { id: string; name: string; role: string | null };
 type Candidate = { id: string; label: string };
@@ -137,6 +138,16 @@ export default function ResponsePage() {
     <div className="min-h-screen bg-stone-50 text-stone-800 flex flex-col">
       <header className="bg-white border-b border-stone-200 py-4 px-4 shrink-0">
         <div className="max-w-lg mx-auto">
+          {SURVEY_CONFIG.isOpen && (
+            <p className="text-center mb-2">
+              <span className="inline-block px-3 py-1 rounded-full bg-amber-500 text-white text-xs font-medium">
+                募集中
+              </span>
+              <span className="ml-2 text-sm text-amber-800 font-medium">
+                {getDeadlineDisplay()}までにご回答ください
+              </span>
+            </p>
+          )}
           <h1 className="text-lg font-bold text-center">ビジネス協同委員会</h1>
           <p className="text-sm text-stone-500 text-center mt-1">
             初回顔合わせ・稼働アンケート
@@ -165,6 +176,11 @@ export default function ResponsePage() {
               </p>
               <p className="text-sm text-stone-600 leading-relaxed">
                 良い1年のスタートを切るために、こちらのアンケートに<strong>全員ご記入</strong>いただけますと幸いです。
+                {SURVEY_CONFIG.isOpen && (
+                  <span className="block mt-2 text-amber-700 font-medium">
+                    回答締切：{getDeadlineDisplay()}
+                  </span>
+                )}
               </p>
             </div>
           </section>
