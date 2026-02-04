@@ -60,7 +60,7 @@ Supabase ダッシュボードの **SQL Editor** で以下を順に実行して�
 cp .env.local.example .env.local
 ```
 
-`.env.local` に Supabase の URL と anon key を記入してください。
+`env.example` に書いている 2 つの変数を、`.env.local`（ローカル）または Vercel の Environment Variables（本番）に設定してください。
 
 ### 6. 起動
 

@@ -56,7 +56,7 @@ git push -u origin main
    - **Framework Preset**: Next.js のまま
    - **Root Directory**: そのまま（`./`）
    - **Build Command**: `npm run build` のまま
-   - **Environment Variables** を追加:
+   - **Environment Variables** を追加（リポジトリの `env.example` を参照）:
      - `NEXT_PUBLIC_SUPABASE_URL` = Supabase の Project URL
      - `NEXT_PUBLIC_SUPABASE_ANON_KEY` = Supabase の anon public key
 5. **Deploy** をクリック
