@@ -86,12 +86,12 @@ INSERT INTO members (name, role, sort_order) VALUES ('氏名', '委員', 10);
 - Tailwind CSS
 - Supabase (PostgreSQL)
 
-## デプロイ
+## デプロイ（GitHub → Vercel）
 
-Vercel にデプロイする場合:
+**GitHub リポジトリの作成と Vercel 連携の手順は [GITHUB_VERCEL_SETUP.md](./GITHUB_VERCEL_SETUP.md) にまとめてあります。**
 
-1. リポジトリを連携
-2. 環境変数に `NEXT_PUBLIC_SUPABASE_URL` と `NEXT_PUBLIC_SUPABASE_ANON_KEY` を設定
-3. デプロイ後、回答用リンク（例: `https://xxx.vercel.app`）を委員に共有
+1. GitHub で新規リポジトリを作成（README なしで作成）
+2. このフォルダで `git remote add origin <あなたのリポジトリURL>` のあと `git push -u origin main`
+3. Vercel で「Import Project」→ そのリポジトリを選択 → 環境変数を設定 → Deploy
 
-管理者用は同じドメインの `/admin` です。必要に応じて認証やパスワード保護を追加してください。
+管理者用は同じドメインの `/admin`、委員向け情報は `/board` です。必要に応じて認証やパスワード保護を追加してください。
