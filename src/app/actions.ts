@@ -25,6 +25,66 @@ export async function getMeetingCandidates() {
   return data ?? [];
 }
 
+// --- アンケート設定（管理画面で編集） ---
+export type Survey = {
+  id: string;
+  name: string;
+  deadline_at: string | null;
+  is_open: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function getSurvey(): Promise<Survey | null> {
+  const { data, error } = await getDb()
+    .from("surveys")
+    .select("*")
+    .limit(1)
+    .order("created_at", { ascending: false })
+    .maybeSingle();
+  if (error) return null;
+  return data as Survey | null;
+}
+
+export async function updateSurvey(input: { name?: string; deadline_at?: string | null; is_open?: boolean }) {
+  const { data: row } = await getDb().from("surveys").select("id").limit(1).order("created_at", { ascending: false }).maybeSingle();
+  if (!row?.id) throw new Error("アンケート設定がありません。Supabase で surveys テーブルを用意してください。");
+  const { error } = await getDb()
+    .from("surveys")
+    .update({
+      ...input,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", row.id);
+  if (error) throw error;
+}
+
+export async function createMeetingCandidate(payload: { candidate_date: string; time_slot?: string | null; label: string; sort_order: number }) {
+  const { error } = await getDb().from("meeting_candidates").insert({
+    candidate_date: payload.candidate_date,
+    time_slot: payload.time_slot ?? null,
+    label: payload.label,
+    sort_order: payload.sort_order,
+  });
+  if (error) throw error;
+}
+
+export async function updateMeetingCandidate(
+  id: string,
+  payload: { candidate_date?: string; time_slot?: string | null; label?: string; sort_order?: number }
+) {
+  const { error } = await getDb()
+    .from("meeting_candidates")
+    .update(payload)
+    .eq("id", id);
+  if (error) throw error;
+}
+
+export async function deleteMeetingCandidate(id: string) {
+  const { error } = await getDb().from("meeting_candidates").delete().eq("id", id);
+  if (error) throw error;
+}
+
 /** 顔合わせ候補日が0件のときだけ、初期データ（2月・3月）を投入する。SQLを叩かずに管理者画面から実行可能 */
 const DEFAULT_CANDIDATES: { candidate_date: string; time_slot: null; label: string; sort_order: number }[] = [
   { candidate_date: "2026-02-10", time_slot: null, label: "2/10(火)", sort_order: 1 },
