@@ -36,7 +36,7 @@ export default function AdminDashboardPage() {
     <div className="space-y-8">
       <div>
         <h2 className="text-xl font-bold text-stone-800">ダッシュボード</h2>
-        <p className="text-sm text-stone-500 mt-1">左のメニューから各項目を管理できます。委員向けページ（/board）はスマホでも閲覧できます。</p>
+        <p className="text-sm text-stone-500 mt-1">左のメニューから各項目を管理できます。委員向けページはトップURL（/）をそのまま共有できます。</p>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
@@ -67,7 +67,7 @@ export default function AdminDashboardPage() {
 
       <div className="p-5 bg-gradient-to-br from-amber-50 to-amber-100/50 rounded-2xl border border-amber-200/80">
         <p className="font-semibold text-amber-900">委員向けページ</p>
-        <p className="text-sm text-amber-800 mt-1">スケジュール・議事録・共有資料を委員に共有する場合は <a href="/board" className="underline font-medium" target="_blank" rel="noopener noreferrer">/board</a> のURLを共有してください。</p>
+        <p className="text-sm text-amber-800 mt-1">スケジュール・議事録・共有資料を委員に共有する場合は <a href="/" className="underline font-medium" target="_blank" rel="noopener noreferrer">トップページ（/）</a> のURLを共有してください。</p>
       </div>
     </div>
   );

@@ -115,7 +115,7 @@ export default function AdminLayout({
 
         <div className="p-3 border-t border-stone-200 space-y-1 shrink-0">
           <Link
-            href="/board"
+            href="/"
             onClick={() => setSidebarOpen(false)}
             className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-stone-500 hover:bg-stone-100 hover:text-stone-700"
           >
@@ -126,7 +126,7 @@ export default function AdminLayout({
             委員向けページ
           </Link>
           <Link
-            href="/"
+            href="/survey"
             onClick={() => setSidebarOpen(false)}
             className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-stone-500 hover:bg-stone-100 hover:text-stone-700"
           >

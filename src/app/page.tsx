@@ -1,386 +1,252 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getMembers, getMeetingCandidates, submitAll } from "./actions";
+import Link from "next/link";
 import {
-  WEEKDAYS,
-  TIME_ZONES,
-  MONTH_PERIODS,
-  SEMINAR_OPTIONS,
-} from "@/lib/supabase";
-import { SURVEY_CONFIG, getDeadlineDisplay } from "@/lib/surveyConfig";
+  getScheduleEvents,
+  getMinutes,
+  getSharedMaterials,
+  getSurvey,
+} from "@/app/actions";
+import { formatDeadlineDisplay } from "@/lib/surveyConfig";
+import type { ScheduleEvent } from "@/app/actions";
 
-type Member = { id: string; name: string; role: string | null };
-type Candidate = { id: string; label: string };
+const today = () => {
+  const d = new Date();
+  return d.toISOString().slice(0, 10);
+};
 
-const STEPS = [
-  "ご挨拶",
-  "お名前",
-  "顔合わせ 参加できる日",
-  "参加しにくい曜日",
-  "参加しにくい時間帯",
-  "忙しい時期",
-  "実施してほしいセミナー・学びたいこと",
-] as const;
-
-function Chip<T extends string>({
-  label,
-  selected,
-  onToggle,
-  className = "",
-}: {
-  label: T;
-  selected: boolean;
-  onToggle: () => void;
-  className?: string;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={`min-h-[48px] px-4 py-3 rounded-xl text-sm font-medium transition touch-manipulation ${className} ${
-        selected
-          ? "bg-amber-500 text-white ring-2 ring-amber-600"
-          : "bg-white border border-stone-300 text-stone-700 hover:border-amber-400"
-      }`}
-    >
-      {label}
-    </button>
-  );
+function formatDate(d: string) {
+  const date = new Date(d);
+  return date.toLocaleDateString("ja-JP", { month: "numeric", day: "numeric", weekday: "short" });
 }
 
-export default function ResponsePage() {
-  const [members, setMembers] = useState<Member[]>([]);
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
-  const [step, setStep] = useState(0);
-  const [selectedMemberId, setSelectedMemberId] = useState<string>("");
-  const [selectedDates, setSelectedDates] = useState<Set<string>>(new Set());
-  const [busyWeekdays, setBusyWeekdays] = useState<Set<string>>(new Set());
-  const [busyTimeZones, setBusyTimeZones] = useState<Set<string>>(new Set());
-  const [busyMonthPeriod, setBusyMonthPeriod] = useState<Set<string>>(new Set());
-  const [seminarSelected, setSeminarSelected] = useState<Set<string>>(new Set());
-  const [seminarOther, setSeminarOther] = useState("");
-  const [lecturePersonWish, setLecturePersonWish] = useState("");
-  const [freeComment, setFreeComment] = useState("");
+function formatTime(t: string | null) {
+  if (!t) return "";
+  const [h, m] = t.slice(0, 5).split(":");
+  return `${h}:${m}`;
+}
+
+export default function BoardPage() {
+  const [schedule, setSchedule] = useState<ScheduleEvent[]>([]);
+  const [minutes, setMinutes] = useState<Awaited<ReturnType<typeof getMinutes>>>([]);
+  const [materials, setMaterials] = useState<Awaited<ReturnType<typeof getSharedMaterials>>>([]);
   const [loading, setLoading] = useState(true);
-  const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+  const [surveyIsOpen, setSurveyIsOpen] = useState(false);
+  const [deadlineAt, setDeadlineAt] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([getMembers(), getMeetingCandidates()])
-      .then(([m, c]) => {
-        setMembers(m as Member[]);
-        setCandidates(c as Candidate[]);
+    Promise.all([getScheduleEvents(), getMinutes(), getSharedMaterials(), getSurvey()])
+      .then(([s, m, mat, survey]) => {
+        setSchedule(s);
+        setMinutes(m);
+        setMaterials(mat);
+        if (survey) {
+          setSurveyIsOpen(survey.is_open);
+          setDeadlineAt(survey.deadline_at);
+        }
       })
-      .catch(() =>
-        setMessage({ type: "error", text: "データの取得に失敗しました。環境変数を確認してください。" })
-      )
+      .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
-  const toggle = (
-    setter: React.Dispatch<React.SetStateAction<Set<string>>>,
-    key: string
-  ) => {
-    setter((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-  };
-
-  const canNext = () => {
-    if (step === 1) return !!selectedMemberId;
-    return true;
-  };
-
-  const handleSubmit = async () => {
-    if (!selectedMemberId) return;
-    setSubmitting(true);
-    setMessage(null);
-    try {
-      await submitAll(
-        selectedMemberId,
-        Array.from(selectedDates),
-        [],
-        Array.from(busyWeekdays),
-        [],
-        Array.from(busyTimeZones),
-        Array.from(busyMonthPeriod),
-        freeComment.trim() || null,
-        { selected: Array.from(seminarSelected), other: seminarOther.trim() },
-        lecturePersonWish.trim() || null
-      );
-      setMessage({ type: "ok", text: "回答を送信しました。ありがとうございます。" });
-    } catch {
-      setMessage({
-        type: "error",
-        text: "送信に失敗しました。しばらくしてから再度お試しください。",
-      });
-    } finally {
-      setSubmitting(false);
-    }
-  };
+  const deadlineDisplay = formatDeadlineDisplay(deadlineAt);
+  const todayStr = today();
+  const upcomingEvents = schedule.filter((ev) => ev.event_date >= todayStr);
+  const nextEvent = upcomingEvents[0] ?? null;
+  const restUpcoming = upcomingEvents.slice(1, 5);
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center p-4">
-        <p className="text-stone-500">読み込み中…</p>
+      <div className="min-h-screen bg-gradient-to-b from-amber-50/80 to-stone-50 flex items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-10 h-10 rounded-full border-2 border-amber-400 border-t-transparent animate-spin" />
+          <p className="text-stone-500 text-sm">読み込み中…</p>
+        </div>
       </div>
     );
   }
 
-  const isLastStep = step === STEPS.length - 1;
-  const progress = ((step + 1) / STEPS.length) * 100;
-
   return (
-    <div className="min-h-screen bg-stone-50 text-stone-800 flex flex-col">
-      <header className="bg-white border-b border-stone-200 py-4 px-4 shrink-0">
-        <div className="max-w-lg mx-auto">
-          {SURVEY_CONFIG.isOpen && (
-            <p className="text-center mb-2">
-              <span className="inline-block px-3 py-1 rounded-full bg-amber-500 text-white text-xs font-medium">
-                募集中
-              </span>
-              <span className="ml-2 text-sm text-amber-800 font-medium">
-                {getDeadlineDisplay()}までにご回答ください
-              </span>
-            </p>
-          )}
-          <h1 className="text-lg font-bold text-center">ビジネス協同委員会</h1>
-          <p className="text-sm text-stone-500 text-center mt-1">
-            初回顔合わせ・稼働アンケート
-          </p>
-          <div className="mt-3 h-1.5 bg-stone-200 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-amber-500 rounded-full transition-all duration-300"
-              style={{ width: `${progress}%` }}
-            />
+    <div className="min-h-screen bg-gradient-to-b from-amber-50/80 to-stone-50 text-stone-800 pb-24">
+      {/* Header */}
+      <header className="sticky top-0 z-10 bg-white/90 backdrop-blur-md border-b border-stone-200/80 shadow-sm">
+        <div className="max-w-lg mx-auto flex items-center justify-between h-14 px-4">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-amber-500 flex items-center justify-center">
+              <span className="text-white font-bold text-xs">YEG</span>
+            </div>
+            <span className="font-bold text-stone-800">ビジネス協同委員会</span>
           </div>
-          <p className="text-xs text-stone-400 text-center mt-1">
-            {step + 1} / {STEPS.length}
-          </p>
         </div>
       </header>
 
-      <main className="flex-1 max-w-lg mx-auto w-full p-4 pb-8">
-        {step === 0 && (
-          <section className="space-y-5">
-            <div className="bg-white rounded-xl border border-stone-200 p-4 space-y-3">
-              <p className="text-stone-700 leading-relaxed">
-                今回、ビジネス協同委員会として、皆さんと次年度1年、一緒に頑張っていきたいと思っております。ぜひよろしくお願いいたします。
-              </p>
-              <p className="text-sm text-stone-600 leading-relaxed">
-                この委員会は、<strong>会員同士が知見や経験を持ち寄り、業種を超えた学びや協業の可能性を見出す</strong>場です。自社の経営・事業の発展や企業の付加価値向上につながる気づきを得られる事業を担当します。
-              </p>
-              <p className="text-sm text-stone-600 leading-relaxed">
-                良い1年のスタートを切るために、こちらのアンケートに<strong>全員ご記入</strong>いただけますと幸いです。
-                {SURVEY_CONFIG.isOpen && (
-                  <span className="block mt-2 text-amber-700 font-medium">
-                    回答締切：{getDeadlineDisplay()}
+      <main className="max-w-lg mx-auto px-4 py-5 space-y-6">
+        {/* アンケートご協力 CTA - surveyIsOpen が true の時のみ目立つカード */}
+        {surveyIsOpen && (
+          <section>
+            <Link
+              href="/survey"
+              className="block relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 p-5 shadow-lg shadow-amber-500/25 text-white hover:shadow-xl hover:shadow-amber-500/30 transition-shadow active:scale-[0.99]"
+            >
+              <span className="absolute top-3 right-3 text-xs font-medium bg-white/20 px-2 py-0.5 rounded-full">
+                募集中
+              </span>
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="font-bold text-lg leading-tight">アンケートにご協力ください</h2>
+                  <p className="text-amber-100 text-sm mt-1">
+                    初回顔合わせ・稼働のご希望を教えてください。タップして回答へ
+                    {deadlineDisplay && (
+                      <span className="block mt-1 text-amber-200 font-medium">締切 {deadlineDisplay}</span>
+                    )}
+                  </p>
+                  <span className="inline-flex items-center gap-1 mt-3 text-sm font-medium">
+                    回答する
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                    </svg>
                   </span>
+                </div>
+              </div>
+            </Link>
+          </section>
+        )}
+
+        {/* 次回の予定・直近 */}
+        <section>
+          <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">いつ何があるか</h2>
+          {nextEvent ? (
+            <div className="rounded-2xl bg-white border border-stone-200/80 shadow-sm overflow-hidden">
+              <div className="px-4 py-3 bg-amber-500/10 border-b border-amber-200/50">
+                <p className="text-xs font-medium text-amber-800">次回の予定</p>
+              </div>
+              <div className="p-4">
+                <p className="font-bold text-stone-800 text-lg">{nextEvent.title}</p>
+                <p className="text-stone-600 text-sm mt-1">
+                  {formatDate(nextEvent.event_date)}
+                  {nextEvent.start_time && ` ${formatTime(nextEvent.start_time)}`}
+                  {nextEvent.end_time && ` 〜 ${formatTime(nextEvent.end_time)}`}
+                  {nextEvent.place && ` · ${nextEvent.place}`}
+                </p>
+                {nextEvent.memo && (
+                  <p className="text-stone-500 text-sm mt-2">{nextEvent.memo}</p>
                 )}
-              </p>
-            </div>
-          </section>
-        )}
-
-        {step === 1 && (
-          <section className="space-y-3">
-            <p className="text-sm font-semibold text-amber-800">{STEPS[1]}</p>
-            <p className="text-xs text-stone-500">お名前を選んでください</p>
-            <select
-              value={selectedMemberId}
-              onChange={(e) => setSelectedMemberId(e.target.value)}
-              className="w-full rounded-xl border border-stone-300 bg-white px-4 py-4 text-base"
-              required
-            >
-              <option value="">選択してください</option>
-              {members.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-            </select>
-          </section>
-        )}
-
-        {step === 2 && (
-          <section className="space-y-3">
-            <p className="text-sm font-semibold text-amber-800">{STEPS[2]}</p>
-            <p className="text-xs text-stone-500">
-              参加できる日をタップで選んでください（複数可）
-            </p>
-            {candidates.length === 0 ? (
-              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-900 space-y-2">
-                <p>現在、候補日は設定されていません。委員長がSupabaseの「顔合わせ候補日」を登録すると、ここにタップできる日が表示されます。</p>
-                <p>表示されない場合は委員長までお知らせください。そのまま「次へ」で先に進めます。</p>
               </div>
-            ) : (
-              <div className="flex flex-wrap gap-2">
-                {candidates.map((c) => (
-                  <Chip
-                    key={c.id}
-                    label={c.label as string}
-                    selected={selectedDates.has(c.id)}
-                    onToggle={() => toggle(setSelectedDates, c.id)}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-
-        {step === 3 && (
-          <section className="space-y-3">
-            <p className="text-sm font-semibold text-amber-800">{STEPS[3]}</p>
-            <p className="text-xs text-stone-500 mb-2">参加しにくい曜日をタップ（複数可）。委員会の日程調整の参考にします</p>
-            <div className="flex flex-wrap gap-2">
-              {WEEKDAYS.map((d) => (
-                <Chip
-                  key={d}
-                  label={d}
-                  selected={busyWeekdays.has(d)}
-                  onToggle={() => toggle(setBusyWeekdays, d)}
-                  className="w-14 justify-center"
-                />
-              ))}
             </div>
-          </section>
-        )}
-
-        {step === 4 && (
-          <section className="space-y-3">
-            <p className="text-sm font-semibold text-amber-800">{STEPS[4]}</p>
-            <p className="text-xs text-stone-500 mb-2">参加しにくい時間帯をタップ（複数可）。18時以降は1時間単位</p>
-            <div className="flex flex-wrap gap-2">
-              {TIME_ZONES.map((z) => (
-                <Chip
-                  key={z}
-                  label={z}
-                  selected={busyTimeZones.has(z)}
-                  onToggle={() => toggle(setBusyTimeZones, z)}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {step === 5 && (
-          <section className="space-y-3">
-            <p className="text-sm font-semibold text-amber-800">{STEPS[5]}</p>
-            <p className="text-xs text-stone-500">
-              普段、忙しい時期をタップ（複数可）。委員会の日程調整の参考にします
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {MONTH_PERIODS.map((p) => (
-                <Chip
-                  key={p}
-                  label={p}
-                  selected={busyMonthPeriod.has(p)}
-                  onToggle={() => toggle(setBusyMonthPeriod, p)}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {step === 6 && (
-          <section className="space-y-4">
-            <p className="text-sm font-semibold text-amber-800">{STEPS[6]}</p>
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-900 space-y-2">
-              <p>
-                本委員会は、セミナーだったり学べる場、もしくはビジネス創造の場を用意したいと考えています。
-              </p>
-              <p>
-                例会などで実施したいことを、皆さんの中からどんどん声を拾っていきたいと思っています。複数選択できます。
-              </p>
-            </div>
-            <p className="text-xs text-stone-500">実施してほしいセミナーや学びたいことをタップ（複数可）</p>
-            <div className="flex flex-wrap gap-2">
-              {SEMINAR_OPTIONS.map((s) => (
-                <Chip
-                  key={s}
-                  label={s}
-                  selected={seminarSelected.has(s)}
-                  onToggle={() => toggle(setSeminarSelected, s)}
-                />
-              ))}
-            </div>
-            <p className="text-xs text-stone-500 mt-3">選択肢にないものがあれば自由にどうぞ</p>
-            <textarea
-              value={seminarOther}
-              onChange={(e) => setSeminarOther(e.target.value)}
-              placeholder="例：AI活用、経理の基礎 など"
-              className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm min-h-[72px]"
-              rows={2}
-            />
-            <p className="text-xs text-stone-500 mt-3">この人の講義を聞きたい（あれば名指しでどうぞ）</p>
-            <input
-              type="text"
-              value={lecturePersonWish}
-              onChange={(e) => setLecturePersonWish(e.target.value)}
-              placeholder="例：〇〇さんにマーケティングの話を聞きたい"
-              className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm"
-            />
-            <p className="text-xs text-stone-500 mt-3">その他コメントがあれば</p>
-            <textarea
-              value={freeComment}
-              onChange={(e) => setFreeComment(e.target.value)}
-              placeholder="自由にご記入ください"
-              className="w-full rounded-xl border border-stone-300 bg-white px-4 py-3 text-sm min-h-[80px]"
-              rows={3}
-            />
-          </section>
-        )}
-
-        {message && (
-          <div
-            className={`mt-4 p-3 rounded-lg text-sm ${
-              message.type === "ok"
-                ? "bg-green-50 text-green-800"
-                : "bg-red-50 text-red-800"
-            }`}
-          >
-            {message.text}
-          </div>
-        )}
-
-        <div className="mt-8 flex gap-3">
-          {step > 0 && (
-            <button
-              type="button"
-              onClick={() => setStep((s) => s - 1)}
-              className="flex-1 py-4 rounded-xl border border-stone-300 bg-white font-semibold text-stone-600"
-            >
-              戻る
-            </button>
-          )}
-          {!isLastStep ? (
-            <button
-              type="button"
-              onClick={() => setStep((s) => s + 1)}
-              disabled={!canNext()}
-              className="flex-1 py-4 rounded-xl bg-amber-500 text-white font-semibold disabled:opacity-50"
-            >
-              次へ
-            </button>
           ) : (
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={submitting}
-              className="flex-1 py-4 rounded-xl bg-amber-500 text-white font-semibold disabled:opacity-50"
-            >
-              {submitting ? "送信中…" : "回答を送信する"}
-            </button>
+            <div className="rounded-2xl bg-white/60 border border-stone-200/80 p-5 text-center">
+              <p className="text-stone-500 text-sm">直近の予定はありません</p>
+              <p className="text-stone-400 text-xs mt-1">スケジュールは下の一覧でご確認ください</p>
+            </div>
           )}
-        </div>
+
+          {restUpcoming.length > 0 && (
+            <ul className="mt-3 space-y-2">
+              {restUpcoming.map((ev) => (
+                <li key={ev.id} className="flex items-center gap-3 p-3 rounded-xl bg-white/80 border border-stone-200/80">
+                  <span className="text-stone-400 text-sm shrink-0 w-16">{formatDate(ev.event_date)}</span>
+                  <span className="font-medium text-stone-800 truncate">{ev.title}</span>
+                  {ev.place && <span className="text-stone-400 text-xs shrink-0 truncate max-w-[80px]">{ev.place}</span>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* スケジュール一覧 */}
+        <section>
+          <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">スケジュール一覧</h2>
+          {schedule.length === 0 ? (
+            <div className="rounded-2xl bg-white/60 border border-stone-200/80 p-5 text-center text-stone-400 text-sm">
+              現在、予定はありません
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {schedule.map((ev) => (
+                <li key={ev.id} className="p-4 rounded-xl bg-white border border-stone-200/80 shadow-sm hover:shadow-md transition-shadow">
+                  <p className="font-medium text-stone-800">{ev.title}</p>
+                  <p className="text-sm text-stone-500 mt-1">
+                    {formatDate(ev.event_date)}
+                    {ev.start_time && ` ${formatTime(ev.start_time)}`}
+                    {ev.end_time && `〜${formatTime(ev.end_time)}`}
+                    {ev.place && ` · ${ev.place}`}
+                  </p>
+                  {ev.memo && <p className="text-sm text-stone-600 mt-2">{ev.memo}</p>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* 議事録 */}
+        <section>
+          <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">議事録</h2>
+          {minutes.length === 0 ? (
+            <div className="rounded-2xl bg-white/60 border border-stone-200/80 p-5 text-center text-stone-400 text-sm">
+              まだ議事録はありません
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {minutes.map((m) => (
+                <li key={m.id} className="p-4 rounded-xl bg-white border border-stone-200/80 shadow-sm">
+                  <p className="font-medium text-stone-800">{m.title}</p>
+                  {m.minute_date && (
+                    <p className="text-sm text-stone-500 mt-0.5">{formatDate(m.minute_date)}</p>
+                  )}
+                  {m.body && (
+                    <div className="text-sm text-stone-600 mt-2 whitespace-pre-wrap line-clamp-3">{m.body}</div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* 共有資料・連絡 */}
+        <section>
+          <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">共有資料・連絡</h2>
+          {materials.length === 0 ? (
+            <div className="rounded-2xl bg-white/60 border border-stone-200/80 p-5 text-center text-stone-400 text-sm">
+              まだありません
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {materials.map((mat) => (
+                <li key={mat.id} className="p-4 rounded-xl bg-white border border-stone-200/80 shadow-sm">
+                  <p className="font-medium text-stone-800">{mat.title}</p>
+                  {mat.url && (
+                    <a
+                      href={mat.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 mt-2 text-sm text-amber-600 font-medium hover:underline"
+                    >
+                      リンクを開く
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                      </svg>
+                    </a>
+                  )}
+                  {mat.body && (
+                    <div className="text-sm text-stone-600 mt-2 whitespace-pre-wrap">{mat.body}</div>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </main>
 
-      <footer className="text-center py-4 border-t border-stone-200">
-        <a href="/board" className="text-sm text-stone-500 underline">委員会メンバー（スケジュール・議事録・連絡）</a>
+      <footer className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur border-t border-stone-200/80 py-2.5 px-4 safe-area-inset-bottom">
+        <p className="text-center text-xs text-stone-400">
+          委員会内限定の情報です。外部共有・スクショはご遠慮ください。
+        </p>
       </footer>
     </div>
   );
